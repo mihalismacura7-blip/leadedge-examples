@@ -5,7 +5,27 @@ Official examples and integration templates for the [LeadEdge](https://leadedge.
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-> **What is LeadEdge?** A real-time signal API that detects when Binance Futures leads Coinbase Spot. Validated at **90.7% follow-through** with **~150ms median lag** on ETH across 7 days of live data ([full methodology](https://leadedge.dev/blog/validation)).
+> **What is LeadEdge?** A real-time signal API that detects when Binance Futures leads Coinbase Spot. Every signal includes predictions AND tracks actual outcomes after the fact — so you can audit accuracy yourself. Validated at **90.7% follow-through** with **~150ms median lag** on ETH ([full methodology](https://leadedge.dev/blog/validation)).
+
+---
+
+## Why LeadEdge Is Different
+
+Most "trading signal" APIs publish predictions and disappear. LeadEdge tracks the actual outcome of every signal:
+
+```json
+"outcome": {
+  "coinbase-spot": {
+    "followed": true,
+    "follow_time_ms": 4982,
+    "actual_direction": "down",
+    "profitable_at_fee": 0.131401,
+    "actual_magnitude_pct": 0.131401
+  }
+}
+```
+
+Every signal grades itself. You can compute accuracy over any window, filter by fee tier profitability, or build your own quality classifier. **The methodology IS the trust layer.**
 
 ---
 
@@ -13,7 +33,7 @@ Official examples and integration templates for the [LeadEdge](https://leadedge.
 
 ### 1. Get your API key
 
-Sign up free at [leadedge.dev](https://leadedge.dev) and grab your API key from the dashboard.
+Get an API key at [leadedge.dev](https://leadedge.dev) (free tier available).
 
 ### 2. Install dependencies
 
@@ -28,13 +48,19 @@ cp .env.example .env
 # Edit .env and add your LEADEDGE_API_KEY
 ```
 
-### 4. Run an example
+### 4. Verify your integration (instant data)
+
+```bash
+python examples/quick_test.py
+```
+
+This fetches the latest signal via REST and prints it — works immediately on free tier with 30-second delay.
+
+### 5. Start the WebSocket stream
 
 ```bash
 python examples/basic_signal_consumer.py
 ```
-
-You should start receiving signals in real-time.
 
 ---
 
@@ -42,25 +68,52 @@ You should start receiving signals in real-time.
 
 | File | Description |
 |------|-------------|
+| [quick_test.py](examples/quick_test.py) | One-shot REST call to verify your API key works — start here |
 | [basic_signal_consumer.py](examples/basic_signal_consumer.py) | Simplest WebSocket consumer — connect and print signals |
-| [rest_polling.py](examples/rest_polling.py) | REST API polling alternative if WebSocket isn't available |
+| [rest_polling.py](examples/rest_polling.py) | REST API polling of `/signals/latest` — alternative to WebSocket |
 | [websocket_with_reconnect.py](examples/websocket_with_reconnect.py) | Production-ready WebSocket with reconnect + heartbeat monitoring |
 | [signal_history_export.py](examples/signal_history_export.py) | Export historical signals to CSV for analysis |
 | [freqtrade_strategy.py](examples/freqtrade_strategy.py) | Drop-in Freqtrade strategy template |
 
 ---
 
-## Sample Signal
+## Sample Signal (Real Payload)
 
 ```json
 {
-  "type": "signal",
+  "id": "sig_0e42c6db250ba80d",
+  "timestamp": 1778765716833,
   "asset": "ETH",
-  "direction": "up",
-  "magnitude": 0.1654,
-  "confidence": 0.907,
-  "follow_within_ms": 300,
-  "breakeven_fee": 0.1223
+  "leader_exchange": "binance",
+  "leader_market_type": "futures",
+  "leader_pair": "ETH/USDT",
+  "leader_direction": "down",
+  "leader_magnitude_pct": 0.148225,
+  "leader_price_before": 2253.335,
+  "leader_price_after": 2249.995,
+  "signal_quality": "medium",
+  "threshold_triggered": 0.100,
+  "predictions": [
+    {
+      "pair": "ETH/USD",
+      "exchange": "coinbase",
+      "confidence": 0.907,
+      "market_type": "spot",
+      "breakeven_fee_pct": 0.1223,
+      "expected_direction": "down",
+      "expected_magnitude_pct": 0.1223,
+      "expected_follow_within_ms": 300
+    }
+  ],
+  "outcome": {
+    "coinbase-spot": {
+      "followed": true,
+      "follow_time_ms": 4982,
+      "actual_direction": "down",
+      "profitable_at_fee": 0.131401,
+      "actual_magnitude_pct": 0.131401
+    }
+  }
 }
 ```
 
@@ -70,9 +123,25 @@ See [docs/signal_schema.md](docs/signal_schema.md) for full schema documentation
 
 ## How It Works
 
-1. **Binance Futures moves** — ETH price makes a significant move (≥0.1%). LeadEdge detects within milliseconds.
-2. **Signal fires** — Direction, magnitude, confidence, and expected follow-through time are pushed via WebSocket.
-3. **Your bot acts** — Place a maker order on the follower exchange before the price catches up.
+1. **Binance Futures moves** — ETH price makes a significant move (≥0.1% by default). LeadEdge detects within milliseconds.
+2. **Signal fires** — `leader_*` fields capture what happened on Binance. `predictions[]` captures what's expected on follower exchanges (currently Coinbase Spot).
+3. **Outcome resolves** — Within seconds, LeadEdge measures what actually happened on the follower and writes it to `outcome`.
+4. **Your bot acts** — Place a maker order on the follower exchange before the price catches up.
+
+---
+
+## Free vs Pro Tier
+
+| Feature | Free | Pro |
+|---------|------|-----|
+| REST `/signals/latest` | 30-second delayed | Real-time |
+| REST `/signals/history` | Last 24 hours | Full history |
+| WebSocket stream | Connection only | Real-time signals |
+| Rate limits | Lower daily quota | Higher daily quota |
+
+**For testing the integration, free tier is fully sufficient** — `quick_test.py` and `rest_polling.py` work out of the box.
+
+For live trading bots that need sub-second latency, the WebSocket stream requires Pro.
 
 ---
 
@@ -87,26 +156,21 @@ LeadEdge was validated with **7 days of live WebSocket data** before any product
 
 Full methodology: [leadedge.dev/blog/validation](https://leadedge.dev/blog/validation)
 
-The methodology IS the trust layer — anyone with a CCXT install can detect cross-exchange lag. The moat is the rigor of measurement, validation, and continuous monitoring.
+The methodology continues in production — every signal records its actual outcome (`followed`, `follow_time_ms`, `profitable_at_fee`), making accuracy auditable in real time.
 
 ---
 
 ## Documentation
 
-- [Signal Schema](docs/signal_schema.md) — Payload format reference
+- [Signal Schema](docs/signal_schema.md) — Full payload format reference
 - [Validation Methodology](docs/methodology.md) — How signals are measured and validated
 - [Full API Docs](https://leadedge.dev/docs) — Complete API reference
 
 ---
 
-## Pricing
+## API Access
 
-| Tier | Price | Use Case |
-|------|-------|----------|
-| Free | $0 | 30-second delayed signals — test the integration |
-| Pro | $99/mo | Real-time WebSocket — built for live bots |
-
-Compare plans: [leadedge.dev/pricing](https://leadedge.dev/pricing)
+Examples require an API key from [leadedge.dev](https://leadedge.dev). Free tier available for testing; see [leadedge.dev/pricing](https://leadedge.dev/pricing) for details.
 
 ---
 
@@ -115,7 +179,7 @@ Compare plans: [leadedge.dev/pricing](https://leadedge.dev/pricing)
 These examples are starting points, not production code. Pull requests welcome for:
 
 - Additional language SDKs (JavaScript/TypeScript, Go, Rust)
-- Integration templates for other bot frameworks (NautilusTrader, QuantConnect, Backtrader)
+- Integration templates for other bot frameworks (NautilusTrader, QuantConnect, Backtrader, Hummingbot)
 - Bug fixes and improvements
 
 Please open an issue first to discuss substantial changes.

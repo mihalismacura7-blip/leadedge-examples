@@ -2,7 +2,9 @@
 
 LeadEdge was validated with **7 days of live WebSocket data** before any product code was written. This document summarizes the methodology — full writeup is at [leadedge.dev/blog/validation](https://leadedge.dev/blog/validation).
 
-## Data Collection
+## Initial Validation (7-Day Pre-Build Study)
+
+### Data Collection
 
 - **Sources:** Binance Futures (leader candidate), Coinbase Spot (follower candidate)
 - **Asset:** ETH/USDT
@@ -10,11 +12,11 @@ LeadEdge was validated with **7 days of live WebSocket data** before any product
 - **Method:** Live WebSocket streams, timestamps normalized to microsecond precision
 - **Volume:** 9.4M price updates
 
-## Key Question Answered
+### Key Question Answered
 
-> "When Binance Futures moves >X%, what % of the time does Coinbase Spot move in the same direction within Y milliseconds?"
+> "When Binance Futures moves >X%, what % of the time does Coinbase Spot move in the same direction within Y milliseconds, and is it profitable to trade after fees?"
 
-## Results
+### Results
 
 | Metric | Value |
 |--------|-------|
@@ -26,7 +28,7 @@ LeadEdge was validated with **7 days of live WebSocket data** before any product
 | Profitability at mixed fees (0.12% RT) | 43.9% |
 | Profitability at standard taker fees (0.20% RT) | 0.9% |
 
-## Why This Matters
+### Why This Matters
 
 Anyone can claim a trading edge. **The methodology behind measurement is what makes the claim defensible.**
 
@@ -39,30 +41,45 @@ LeadEdge's approach:
 
 This is the trust layer: not the algorithm, but the rigor of measurement.
 
+---
+
+## Continuous Validation in Production
+
+The initial 7-day study answered the question "does the edge exist?" Production monitoring answers a more important one: **"does it still exist today?"**
+
+Every signal LeadEdge fires gets graded after the fact. The `outcome` field on each signal records:
+
+- `followed`: did the follower exchange actually move in the predicted direction?
+- `follow_time_ms`: how long did it take?
+- `actual_direction`: what really happened?
+- `actual_magnitude_pct`: how big was the actual move?
+- `profitable_at_fee`: at what fee level would this trade have been profitable?
+
+This means:
+
+1. **Anyone can audit accuracy** — pull the `/signals/history` endpoint, compute follow-through rates on your own machine.
+2. **Regime drift is visible** — if the edge degrades, the rolling follow-through rate drops. You'll see it before we tell you.
+3. **Fee-aware filtering is built in** — `profitable_at_fee` lets you screen out signals that wouldn't have made money at your specific cost basis.
+
+See `examples/signal_history_export.py` for a CSV exporter that lets you compute your own statistics.
+
+---
+
 ## Why Maker Fees Matter
 
-The profitability breakdown above shows the strategy is **only viable at maker fee levels**. This is critical:
+The profitability breakdown above shows the strategy is **only viable at maker fee levels**:
 
-- At ultra-low maker fees (e.g., Coinbase Advanced VIP, Binance Futures market maker programs): 92.7% profitable
+- At ultra-low maker fees (Coinbase Advanced VIP, Binance Futures market maker programs): 92.7% profitable
 - At standard taker fees (~0.20% round-trip): only 0.9% profitable — essentially negative expected value
 
-If you're not using maker-only orders, this signal will not be profitable for you. Plan accordingly.
+**If you're not using maker-only orders, this signal will not be profitable for you.** Plan accordingly. The `breakeven_fee_pct` field on each prediction tells you the maximum total fee at which that specific signal would have been profitable.
+
+---
 
 ## Caveats
 
 - **Validated on ETH only** — other assets in development
-- **7-day window** — longer-horizon stability requires ongoing monitoring
+- **Initial study was 7 days** — longer-horizon stability requires ongoing monitoring (which is exactly what the production outcome tracking provides)
 - **Past performance does not guarantee future results**
 - **Trading involves substantial risk** — see [Terms of Service](https://leadedge.dev/terms) for full disclaimers
 - **No financial advice** — LeadEdge provides data, not investment recommendations
-
-## Continuous Validation
-
-LeadEdge continuously monitors signal performance in production. The methodology isn't a one-time validation exercise — it's a sustained measurement infrastructure that:
-
-- Tracks real-time follow-through rates
-- Detects regime shifts where the signal degrades
-- Adjusts confidence calibrations based on rolling performance
-- Publishes performance updates transparently
-
-If the signal stops working, you'll know — not from us telling you, but because the confidence scores will drop and the dashboard will show it.

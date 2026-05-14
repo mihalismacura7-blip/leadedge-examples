@@ -4,10 +4,11 @@ Working code examples for integrating with the LeadEdge API.
 
 ## Files
 
-- **basic_signal_consumer.py** — Minimal WebSocket consumer. Start here.
-- **rest_polling.py** — REST API alternative for environments where WebSockets aren't viable.
+- **quick_test.py** — One-shot REST call to verify your API key and see a real signal. **Start here.**
+- **basic_signal_consumer.py** — Minimal WebSocket consumer (requires Pro tier for real-time signals).
+- **rest_polling.py** — REST polling of `/signals/latest` — works on Free tier with 30-second delay.
 - **websocket_with_reconnect.py** — Production-ready WebSocket with automatic reconnection, exponential backoff, and silent staleness detection.
-- **signal_history_export.py** — Export historical signals to CSV for analysis or training your own filters.
+- **signal_history_export.py** — Export historical signals to CSV for analysis (Free tier: last 24h; Pro: full history).
 - **freqtrade_strategy.py** — Drop-in Freqtrade strategy template.
 
 ## Setup
@@ -19,11 +20,14 @@ cp .env.example .env
 # Edit .env to add your LEADEDGE_API_KEY
 ```
 
-## Running
+## Recommended Order
 
-```bash
-python examples/basic_signal_consumer.py
-```
+1. **quick_test.py** — confirms your API key works (instant feedback, works on Free tier)
+2. **rest_polling.py** — see signals arrive in a loop (Free tier compatible)
+3. **basic_signal_consumer.py** — WebSocket stream (Pro tier required for real-time signals)
+4. **websocket_with_reconnect.py** — production-ready WebSocket
+5. **signal_history_export.py** — pull historical data for analysis
+6. **freqtrade_strategy.py** — template for integrating into Freqtrade
 
 All examples expect `LEADEDGE_API_KEY` in your environment (loaded from `.env` automatically via python-dotenv).
 

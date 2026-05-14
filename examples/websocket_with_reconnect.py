@@ -5,10 +5,13 @@ Production-Ready WebSocket Consumer
 Includes:
 - Automatic reconnection with exponential backoff
 - Message-level heartbeat monitoring (detects silent staleness)
+- Defensive signal parsing
 - Graceful error handling
-- Configurable timeout for stale connections
 
-This is the recommended starting point for production bots.
+This is the recommended starting point for production bots on Pro tier.
+
+Note: Free tier WebSocket connects but does not deliver real-time signals.
+Use rest_polling.py on Free tier.
 
 Usage:
     python examples/websocket_with_reconnect.py
@@ -31,7 +34,7 @@ if not API_KEY:
 WS_URL = f"wss://api.leadedge.dev/v1/stream?api_key={API_KEY}"
 
 # Configuration
-STALENESS_TIMEOUT = 30  # seconds without any message before reconnecting
+STALENESS_TIMEOUT = 60  # seconds without any message before reconnecting
 BASE_RECONNECT_DELAY = 1  # initial reconnect delay in seconds
 MAX_RECONNECT_DELAY = 60  # maximum reconnect delay
 
@@ -45,20 +48,44 @@ class LeadEdgeClient:
 
     def on_message(self, ws, message):
         self.last_message_time = time.time()
-        signal = json.loads(message)
 
-        if signal.get("type") == "heartbeat":
-            return  # Heartbeat acknowledged via last_message_time update
+        try:
+            msg = json.loads(message)
+        except json.JSONDecodeError:
+            print(f"[RAW] {message}")
+            return
 
-        if signal.get("type") == "signal":
+        msg_type = msg.get("type")
+
+        if msg_type == "connected":
+            print(
+                f"[WELCOME] tier={msg.get('tier')} "
+                f"delay_ms={msg.get('delay_ms')} "
+                f"client_id={msg.get('client_id')}"
+            )
+            return
+
+        if msg_type == "heartbeat":
+            # Heartbeat acknowledged via last_message_time update
+            return
+
+        if msg_type == "signal":
+            signal = msg.get("signal") or msg
             self.process_signal(signal)
+            return
+
+        print(f"[UNKNOWN MSG] type={msg_type}")
 
     def process_signal(self, signal):
         """Override this method with your trading logic."""
+        predictions = signal.get("predictions", [])
+        pred = predictions[0] if predictions else {}
+
         print(
-            f"[SIGNAL] {signal['asset']} "
-            f"direction={signal['direction']} "
-            f"confidence={signal['confidence']:.3f}"
+            f"[SIGNAL] {signal.get('asset')} "
+            f"direction={signal.get('leader_direction')} "
+            f"magnitude={signal.get('leader_magnitude_pct', 0):.4f}% "
+            f"confidence={pred.get('confidence', 0):.3f}"
         )
 
     def on_error(self, ws, error):
@@ -74,9 +101,10 @@ class LeadEdgeClient:
 
     def staleness_monitor(self):
         """Watchdog thread that detects silent staleness.
-        
-        TCP keepalive isn't enough — the connection can stay "alive" 
-        while message flow has stopped. Message-level heartbeats catch this.
+
+        TCP keepalive isn't enough — the connection can stay "alive"
+        while message flow has stopped. Message-level monitoring catches this.
+        Heartbeats arrive every ~15 seconds from the LeadEdge server.
         """
         while self.should_run:
             time.sleep(5)
@@ -93,7 +121,6 @@ class LeadEdgeClient:
 
     def run(self):
         """Main loop with reconnect logic."""
-        # Start staleness monitor in background
         monitor = threading.Thread(target=self.staleness_monitor, daemon=True)
         monitor.start()
 
@@ -116,7 +143,6 @@ class LeadEdgeClient:
             print(f"[RECONNECT] Sleeping {self.reconnect_delay}s before retry")
             time.sleep(self.reconnect_delay)
 
-            # Exponential backoff with cap
             self.reconnect_delay = min(
                 self.reconnect_delay * 2,
                 MAX_RECONNECT_DELAY,

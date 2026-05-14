@@ -2,8 +2,12 @@
 Basic LeadEdge Signal Consumer
 ================================
 
-Simplest possible WebSocket consumer. Connects to the LeadEdge API
-and prints incoming signals to stdout.
+Simplest WebSocket consumer. Connects to the LeadEdge stream and prints
+incoming signals to stdout.
+
+Note: On Free tier, the WebSocket connects but real signals are not delivered
+(they're available via REST `/signals/latest` with a 30-second delay).
+For testing the integration on Free tier, use quick_test.py or rest_polling.py.
 
 Usage:
     1. Copy .env.example to .env and add your API key
@@ -29,25 +33,55 @@ WS_URL = f"wss://api.leadedge.dev/v1/stream?api_key={API_KEY}"
 
 
 def on_message(ws, message):
-    """Called when a new signal arrives."""
-    signal = json.loads(message)
+    """Called when a new message arrives. Handles signal, heartbeat, and welcome messages."""
+    try:
+        msg = json.loads(message)
+    except json.JSONDecodeError:
+        print(f"[RAW] {message}")
+        return
 
-    if signal.get("type") != "signal":
-        return  # Skip non-signal messages (heartbeats, etc.)
+    msg_type = msg.get("type")
 
-    print(
-        f"[SIGNAL] {signal['asset']} "
-        f"direction={signal['direction']} "
-        f"magnitude={signal['magnitude']:.4f} "
-        f"confidence={signal['confidence']:.3f} "
-        f"breakeven_fee={signal['breakeven_fee']:.4f}%"
-    )
+    # Welcome message on connect
+    if msg_type == "connected":
+        print(
+            f"[WELCOME] tier={msg.get('tier')} "
+            f"delay_ms={msg.get('delay_ms')} "
+            f"client_id={msg.get('client_id')}"
+        )
+        return
 
-    # >>> Place your trading logic here <<<
-    # Example: only act on high-confidence signals
-    if signal["confidence"] > 0.85:
-        # place_order(signal)
-        pass
+    # Heartbeats — skip (printing them is noisy)
+    if msg_type == "heartbeat":
+        return
+
+    # Signal — process it
+    if msg_type == "signal":
+        # Defensive: the signal data might be inlined or wrapped
+        signal = msg.get("signal") or msg
+
+        predictions = signal.get("predictions", [])
+        pred = predictions[0] if predictions else {}
+
+        print(
+            f"[SIGNAL] {signal.get('asset')} "
+            f"direction={signal.get('leader_direction')} "
+            f"magnitude={signal.get('leader_magnitude_pct', 0):.4f}% "
+            f"quality={signal.get('signal_quality')} "
+            f"confidence={pred.get('confidence', 0):.3f} "
+            f"breakeven_fee={pred.get('breakeven_fee_pct', 0):.4f}%"
+        )
+
+        # >>> Place your trading logic here <<<
+        # Example: only act on high-confidence signals where the breakeven fee covers your costs
+        if pred.get("confidence", 0) > 0.85:
+            # if pred["breakeven_fee_pct"] > YOUR_ROUND_TRIP_FEE_PCT:
+            #     place_order(signal)
+            pass
+        return
+
+    # Unknown message type
+    print(f"[UNKNOWN MSG] type={msg_type} raw={message[:200]}")
 
 
 def on_error(ws, error):
@@ -55,7 +89,7 @@ def on_error(ws, error):
 
 
 def on_close(ws, close_status_code, close_msg):
-    print(f"[CLOSED] {close_status_code}: {close_msg}")
+    print(f"[CLOSED] code={close_status_code} msg={close_msg}")
 
 
 def on_open(ws):
