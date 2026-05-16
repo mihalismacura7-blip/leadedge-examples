@@ -77,6 +77,93 @@ python examples/basic_signal_consumer.py
 
 ---
 
+## Freqtrade Integration
+
+The `freqtrade_strategy.py` template lets you consume LeadEdge signals directly inside Freqtrade. **Empirically tested with Freqtrade stable in dry-run mode.**
+
+### Tested With
+
+- Freqtrade 2026.4
+- Python 3.12
+- Docker (custom image with websocket-client added)
+- LeadEdge Free tier (connection verified; Pro tier required for real-time signals)
+
+### Requirements
+
+- A working Freqtrade installation (any recent version supporting `IStrategy` V3)
+- `websocket-client` Python package (not included by default in Freqtrade)
+- LeadEdge **Pro tier** for real-time signal delivery (Free tier connects but doesn't deliver real-time signals)
+
+### Setup
+
+**1. Install websocket-client in your Freqtrade environment:**
+
+```bash
+pip install websocket-client
+```
+
+If using Docker, add to a custom Dockerfile:
+```dockerfile
+FROM freqtradeorg/freqtrade:stable
+USER root
+RUN pip install websocket-client
+USER ftuser
+```
+
+**2. Copy the strategy file:**
+
+```bash
+cp examples/freqtrade_strategy.py /path/to/freqtrade/user_data/strategies/
+```
+
+**3. Set your API key as an environment variable:**
+
+```bash
+export LEADEDGE_API_KEY="le_live_..."
+```
+
+Or in Docker:
+```bash
+docker run -e LEADEDGE_API_KEY=le_live_... ...
+```
+
+**4. Run with dry-run:**
+
+```bash
+freqtrade trade --strategy LeadEdgeStrategy --config user_data/config.json --dry-run
+```
+
+### Configuration Knobs
+
+Inside the strategy file:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `MIN_CONFIDENCE` | 0.85 | Minimum signal confidence to act on |
+| `MIN_BREAKEVEN_FEE_PCT` | 0.10 | Minimum breakeven fee for trade profitability |
+| `SIGNAL_VALIDITY_SECONDS` | 5 | How fresh a signal must be |
+
+### What the Strategy Does
+
+- Background thread connects to LeadEdge WebSocket on startup
+- Listens for `signal` messages on ETH
+- Enters **long positions** when:
+  - Signal arrived within `SIGNAL_VALIDITY_SECONDS`
+  - Predicted direction is `up`
+  - Confidence ≥ `MIN_CONFIDENCE`
+  - Breakeven fee ≥ `MIN_BREAKEVEN_FEE_PCT`
+- Uses Freqtrade's ROI table and stoploss for exits
+
+### Customization
+
+This is a **starting template**, not a complete trading system. Customize:
+- Add "down" signal handling for short positions
+- Tune ROI/stoploss for your risk profile
+- Add additional filters in `populate_entry_trend`
+- Adapt for REST polling if you're on Free tier (see `examples/rest_polling.py`)
+
+---
+
 ## Sample Signal (Real Payload)
 
 ```json
