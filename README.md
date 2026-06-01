@@ -186,6 +186,91 @@ This is a **starting template**, not a complete trading system. Customize:
 - Add additional filters in `populate_entry_trend`
 - Adapt for REST polling if you're on Free tier (see `examples/rest_polling.py`)
 
+## Hummingbot Integration
+
+The `leadedge_signal_strategy.py` template consumes LeadEdge signals inside [Hummingbot](https://hummingbot.org) as a Strategy V2 script. On each fresh signal it opens a barrier-managed `PositionExecutor` in the signal's direction (BUY on `up`, SELL on `down`) with take-profit, stop-loss, and time-limit exits. Because Hummingbot acts the moment a signal arrives over WebSocket — rather than on a candle loop — it's the better technical fit for capturing the lead/lag window.
+
+### Verification
+
+This strategy was validated on the Binance Futures testnet with confirmed fills in **both directions** — a live LeadEdge signal opening a real position on `testnet.binancefuture.com`, with the full PositionExecutor lifecycle (entry → barrier-managed exit via take-profit, stop-loss, or time limit). That exercises the entire path: signal → strategy decision → order placement → fill → managed exit, against a real exchange connector.
+
+One known wrinkle is testnet-only and cosmetic. On the Binance Futures testnet, Hummingbot logs a repeating `start_trade_monitor failed` error — a known framework bug (hummingbot/hummingbot#7842) where the `binance_perpetual_testnet` connector reports an inconsistent name, which breaks the status-bar P&L display. It does **not** affect order execution: the PositionExecutor places and manages orders independently of that UI component. It's testnet-only — the mainnet `binance_perpetual` connector reports its name consistently and never hits this. Confirm fills via the strategy logs and the testnet Positions tab rather than the status bar.
+
+### Tested With
+
+- Hummingbot `dev-2.15.0` (Strategy V2)
+- Binance Futures testnet (`binance_perpetual_testnet`)
+- No extra dependencies — uses `aiohttp`, which ships with Hummingbot
+- Confirmed both-direction fills; validation run on Pro.
+
+### Requirements
+
+- A working Hummingbot installation with Strategy V2 support.
+- A connector: Binance Futures testnet keys (free, no KYC, from `testnet.binancefuture.com`) for testing, or your `binance_perpetual` keys for mainnet.
+- LeadEdge Pro tier for real-time signal delivery (Free tier connects but doesn't deliver real-time signals).
+
+### Setup
+
+**1. Copy the strategy file into your Hummingbot `scripts/` directory:**
+
+```bash
+cp examples/leadedge_signal_strategy.py /path/to/hummingbot/scripts/
+```
+
+**2. Connect your exchange in the Hummingbot client (paste key + secret):**
+
+```bash
+connect binance_perpetual_testnet
+```
+
+Use `binance_perpetual` for mainnet.
+
+**3. Create a script config:**
+
+```bash
+create --script-config leadedge_signal_strategy
+```
+
+Set `leadedge_api_key` to your `le_live_...` key, `connector` to `binance_perpetual_testnet` (or `binance_perpetual`), and `asset` / `trading_pair` (e.g. `ETH` / `ETH-USDT`).
+
+**4. Start it:**
+
+```bash
+start --script leadedge_signal_strategy --conf conf_leadedge_signal_strategy_1.yml
+```
+
+**5. Confirm it's armed:**
+
+Watch for `LeadEdge: subscription confirmed` in the logs — that's when it's listening for signals.
+
+### Configuration Knobs
+
+Set when you create the script config:
+
+| Field | Default | Purpose |
+|------|---------|---------|
+| `asset` | `ETH` | Which LeadEdge asset to act on (ETH, BTC, LINK) |
+| `min_signal_quality` | `weak` | Minimum signal quality to trade (weak / medium / strong) |
+| `max_signal_age_ms` | `5000` | Ignore signals older than this |
+| `connector` | `binance_perpetual_testnet` | Exchange connector to trade on |
+| `trading_pair` | `ETH-USDT` | Pair to trade |
+| `order_amount_quote` | `50` | Position size in quote currency |
+| `leverage` | `1` | Leverage (perp supports higher) |
+| `take_profit` / `stop_loss` | `0.003` | Barrier exits (0.003 = 0.3%) |
+| `time_limit` | `60` | Max seconds per position |
+| `cooldown_seconds` | `10` | Pause after a trade |
+
+### What the Strategy Does
+
+- A background task connects to the LeadEdge WebSocket on startup and subscribes to all signal qualities plus outcomes.
+- On a fresh signal for the configured `asset`, it checks direction, quality, and freshness (`max_signal_age_ms`).
+- If it passes, it opens a single `PositionExecutor` — BUY on `up`, SELL on `down` — sized by `order_amount_quote`, with take-profit / stop-loss / time-limit barriers.
+- `cooldown_seconds` plus a one-position-at-a-time guard prevent over-trading.
+
+### Customization
+
+This is a reference integration, not a turnkey money-maker — the edge lives in a ~60–400 ms window, so it's only profitable with the real-time (Pro) signal and low-latency execution at maker fees. Test on testnet first, measure your own fills, and tune the barriers, sizing, and quality filter before considering mainnet.
+
 ---
 
 ## Sample Signal (Real Payload)
@@ -290,7 +375,7 @@ Examples require an API key from [leadedge.dev](https://leadedge.dev). Free tier
 These examples are starting points, not production code. Pull requests welcome for:
 
 - Additional language SDKs (JavaScript/TypeScript, Go, Rust)
-- Integration templates for other bot frameworks (NautilusTrader, QuantConnect, Backtrader, Hummingbot)
+- Integration templates for other bot frameworks (NautilusTrader, QuantConnect, Backtrader)
 - Bug fixes and improvements
 
 Please open an issue first to discuss substantial changes.
