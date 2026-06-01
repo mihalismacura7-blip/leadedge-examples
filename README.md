@@ -73,6 +73,7 @@ python examples/basic_signal_consumer.py
 | [websocket_with_reconnect.py](examples/websocket_with_reconnect.py) | Production-ready WebSocket with reconnect + heartbeat monitoring |
 | [signal_history_export.py](examples/signal_history_export.py) | Export historical signals to CSV for analysis |
 | [freqtrade_strategy.py](examples/freqtrade_strategy.py) | Drop-in Freqtrade strategy template |
+| [leadedge_signal_strategy.py](examples/leadedge_signal_strategy.py) | Drop-in Hummingbot V2 strategy template |
 
 ---
 
@@ -185,6 +186,8 @@ This is a **starting template**, not a complete trading system. Customize:
 - Tune ROI/stoploss for your risk profile
 - Add additional filters in `populate_entry_trend`
 - Adapt for REST polling if you're on Free tier (see `examples/rest_polling.py`)
+
+---
 
 ## Hummingbot Integration
 
