@@ -80,12 +80,37 @@ python examples/basic_signal_consumer.py
 
 The `freqtrade_strategy.py` template lets you consume LeadEdge signals directly inside Freqtrade. **Empirically tested with Freqtrade stable in dry-run mode.**
 
+### Verification
+
+This strategy was validated in **Freqtrade dry-run** across ETH, BTC, and LINK, both
+long and short — signals consumed over WebSocket, entries and exits placed, stop-loss
+and ROI triggered, and PnL recorded in Freqtrade's own trades database. That exercises
+the entire integration path: signal → strategy decision → trade lifecycle → PnL.
+
+Dry-run simulates fills against live market data rather than sending orders to an
+exchange, so the one leg it doesn't exercise is "the order physically fills on an
+exchange." That leg is Freqtrade's own mature, CCXT-based execution code — used by
+thousands of people — not anything this integration introduces.
+
+**On the Binance Futures testnet specifically:** real-fill verification there isn't
+practical, and not because of this strategy. Freqtrade's market-loading calls CCXT's
+`fetch_currencies`, which on Binance uses the spot `sapi` endpoint. The Binance futures
+testnet has no `sapi` equivalent, so the call is misrouted to live spot and the testnet
+key is rejected (`-2008`) — even with `sandbox: true` and URL overrides. This is a
+long-standing framework limitation, not a fixable config:
+
+- [freqtrade/freqtrade#6909](https://github.com/freqtrade/freqtrade/issues/6909) — "binance does not have a testnet/sandbox URL for sapi endpoints"
+- [ccxt/ccxt#26487](https://github.com/ccxt/ccxt/issues/26487) — the underlying CCXT routing issue
+
+On **mainnet** (which has the `sapi` endpoint) Freqtrade's live trading works normally;
+the gap is testnet-only.
+
 ### Tested With
 
 - Freqtrade 2026.4
 - Python 3.12
 - Docker (custom image with websocket-client added)
-- LeadEdge Free tier (connection verified; Pro tier required for real-time signals)
+- Free tier connection verified; dry-run validation run on Pro.
 
 ### Requirements
 
