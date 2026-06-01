@@ -10,6 +10,7 @@ Working code examples for integrating with the LeadEdge API.
 - **websocket_with_reconnect.py** — Production-ready WebSocket with automatic reconnection, exponential backoff, and silent staleness detection.
 - **signal_history_export.py** — Export historical signals to CSV for analysis (Free tier: last 24h; Pro: full history).
 - **freqtrade_strategy.py** — Drop-in Freqtrade strategy template.
+- **leadedge_signal_strategy.py** — Drop-in Hummingbot V2 strategy template
 
 ## Setup
 
