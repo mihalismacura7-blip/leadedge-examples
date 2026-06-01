@@ -29,6 +29,7 @@ cp .env.example .env
 4. **websocket_with_reconnect.py** — production-ready WebSocket
 5. **signal_history_export.py** — pull historical data for analysis
 6. **freqtrade_strategy.py** — template for integrating into Freqtrade
+7. **leadedge_signal_strategy.py** — template for integrating into Hummingbot (V2)
 
 All examples expect `LEADEDGE_API_KEY` in your environment (loaded from `.env` automatically via python-dotenv).
 
