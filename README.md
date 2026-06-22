@@ -5,7 +5,7 @@ Official examples and integration templates for the [LeadEdge](https://leadedge.
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-> **What is LeadEdge?** A real-time signal API that detects when Binance Futures leads the spot market. Every signal includes predictions AND tracks actual outcomes after the fact — so you can audit accuracy yourself. Live across ETH, BTC, and LINK, validated at 83–91% follow-through on live data ([full methodology](https://leadedge.dev/blog/validation)).
+> **What is LeadEdge?** A real-time signal API that detects when Binance Futures leads the spot market. Every signal includes predictions AND tracks actual outcomes after the fact — so you can audit accuracy yourself. Live across ETH, BTC, LINK, XRP, and DOGE, validated at ~82–91% follow-through on live data ([full methodology](https://leadedge.dev/blog/validation)).
 ---
 
 ## Why LeadEdge Is Different
@@ -322,7 +322,7 @@ See [docs/signal_schema.md](docs/signal_schema.md) for full schema documentation
 
 ## How It Works
 
-1. **Binance Futures moves** — ETH, BTC, or LINK makes a significant move (as small as 0.05%). LeadEdge detects within milliseconds.
+1. **Binance Futures moves** — ETH, BTC, LINK, XRP, or DOGE makes a significant move (as small as 0.05%). LeadEdge detects within milliseconds.
 2. **Signal fires** — `leader_*` fields capture what happened on Binance. predictions[] captures what's expected on follower exchanges (Coinbase Spot and Bybit Spot).
 3. **Outcome resolves** — Within seconds, LeadEdge measures what actually happened on the follower and writes it to `outcome`.
 4. **Your bot acts** — Place a maker order on the follower exchange before the price catches up.
@@ -350,7 +350,7 @@ LeadEdge was validated on live **WebSocket data** before any product code was wr
 
 - **90.7% follow-through** on ETH at the 0.1% threshold (Binance Futures → Coinbase Spot, 7-day live measurement)
 - **92.7% profitability** on ETH at ultra-low maker fees (0.04% round-trip)
-- **BTC and LINK** since validated at ~88.6% and ~83% follow-through on Bybit Spot
+- **BTC, LINK, XRP, and DOGE** since validated at ~88.6%, ~83%, ~85.6%, and ~81.7% follow-through on Bybit Spot
 - **Single-digit-millisecond** signal delivery to a co-located client
 
 Full methodology: [leadedge.dev/blog/validation](https://leadedge.dev/blog/validation)
