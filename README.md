@@ -252,7 +252,7 @@ Set when you create the script config:
 
 | Field | Default | Purpose |
 |------|---------|---------|
-| `asset` | `ETH` | Which LeadEdge asset to act on (ETH, BTC, LINK) |
+| `asset` | `ETH` | Which LeadEdge asset to act on (ETH, BTC, LINK, XRP, DOGE) |
 | `min_signal_quality` | `weak` | Minimum signal quality to trade (weak / medium / strong) |
 | `max_signal_age_ms` | `5000` | Ignore signals older than this |
 | `connector` | `binance_perpetual_testnet` | Exchange connector to trade on |
